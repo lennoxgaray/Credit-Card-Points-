@@ -1,0 +1,85 @@
+---
+title: "RShiny Spending Calculator"
+author: "Lennox Garay"
+date: "2024-05-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(shiny)
+library(shinythemes)
+
+
+```
+
+```{r}
+ui <- fluidPage(
+  ## App Title 
+  titlePanel("Credit Card Point Value Calculator Conditioned on Spend Behavior"),
+  
+  ### Sidebar layout input definitions 
+  sidebarLayout(
+    sidebarPanel(
+      
+      HTML("<h3>Input parameters</h3>"),
+      ## Grocery $ 
+      numericInput("groceries", label = "Groceries:", min=0, value = 500), ## flights 
+      numericInput('restaurants', label = "Restaurants", min=0, value = 300), # food
+      
+      numericInput("flights", label = "Flights:", min=0, value = 100),
+      ## hotel/misc travel 
+      numericInput("hotel", label = "Hotel and Misc Travel:", min=0, value = 100), 
+      ## other 
+      numericInput("other",label =  "Other:", min=0, value = 700),
+      
+      ## ("update" = actual button command, "Update" = button label)
+      actionButton("update", label =  "Update"),
+      
+      mainPanel(tags$label(h3('Status/Output')), # Status/Output Text Box
+                                      verbatimTextOutput('contents'),
+                                      tableOutput('tabledata') # Results table
+                                    )), # mainPanel()
+      helpText("Note: Each category below is the expenditure per month.")
+    ))
+
+server <- function(input, output){
+  
+  datasetInput <- reactive({
+    
+    total = input$groceries + input$restaurants + input$flights + input$hotel + input$other 
+    amex_pts = 4*input$groceries + 4*input$restaurants + 3*input$flights + input$hotel + input$other
+    amex_cash_value = 1*amex_pts/100
+    chase_pts = input$groceries + 3*input$restaurants + 3*input$flights + 3*input$hotel + input$other
+    chase_cash_value = 1.25*chase_pts/100
+    
+    Table = data.frame("Total Spent" = total, "Amex Points" = amex_pts,
+                     "Amex Cash Value" = amex_cash_value, "Chase Points" = chase_pts,
+                     "Chase Cash Value" = chase_cash_value)
+    print(Table)
+    
+  })
+  
+    output$contents <- renderPrint({
+    if (input$update>0) { 
+      isolate("Calculation complete.") 
+    } else {
+      return("Server is ready for calculation.")
+    }
+  })
+  
+  # Prediction results table
+  output$tabledata <- renderTable({
+    if (input$update>0) { 
+      isolate(datasetInput()) 
+    } 
+  })
+  
+  }
+shinyApp(ui = ui, server = server)
+
+```
+
