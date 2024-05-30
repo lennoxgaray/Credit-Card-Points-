@@ -12,12 +12,41 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(shiny)
 library(shinythemes)
-
+library(ggplot2)
 
 ```
 
 ```{r}
 ui <- fluidPage(
+    theme = shinytheme("cerulean"),  # Apply the cerulean theme
+  tags$head(
+    tags$style(HTML("
+      #dataTableContainer {
+        position: absolute;
+        top: 150px;
+        right: 150px;
+        width: calc(100% - 150x); /* Adjust according to the sidebar width */
+        z-index: 50; /* z-index controls how centered the TABLE output is. */
+      }
+      #sidebar {
+        width: 300px;
+        float: right;
+        padding-right: 30px;
+      }
+    "))
+  ),
+  tags$head(
+    tags$style(HTML("
+      #dataPlotContainer {
+        position: absolute;
+        top: 300px;
+        right: 5px;
+        width: calc(100% - 500px); /* Adjust according to the sidebar width */
+        z-index: 20; /* z-index controls how centered the TABLE output is. */
+      }"
+      ))
+  ),
+  
   ## App Title 
   titlePanel("Credit Card Point Value Calculator Conditioned on Spend Behavior"),
   
@@ -44,11 +73,20 @@ ui <- fluidPage(
                                       tableOutput('tabledata') # Results table
                                     )), # mainPanel()
       helpText("Note: Each category below is the expenditure per month.")
-    ))
+    ),
+       # Container for the data frame output
+  div(id = "dataTableContainer",
+      tableOutput("dataTable")
+  ), 
+  ## Container for the dataPlot 
+  div(id= "dataPlotContainer", 
+      plotOutput("dataPlot")
+)
+) 
 
 server <- function(input, output){
   
-  datasetInput <- reactive({
+  Table <- reactive({
     
     total = input$groceries + input$restaurants + input$flights + input$hotel + input$other 
     amex_pts = 4*input$groceries + 4*input$restaurants + 3*input$flights + input$hotel + input$other
@@ -56,12 +94,95 @@ server <- function(input, output){
     chase_pts = input$groceries + 3*input$restaurants + 3*input$flights + 3*input$hotel + input$other
     chase_cash_value = 1.25*chase_pts/100
     
-    Table = data.frame("Total Spent" = total, "Amex Points" = amex_pts,
+    
+    ## isolate returns the data.frame object while keeping Table() as a function that we will cal in the server function. 
+    ## doing it this way will allow us to call the Table() in the UI function so it can be moved absolutely. 
+    isolate({
+      data.frame("Total Spent" = total, "Amex Points" = amex_pts,
                      "Amex Cash Value" = amex_cash_value, "Chase Points" = chase_pts,
                      "Chase Cash Value" = chase_cash_value)
-    print(Table)
-    
+    })
   })
+
+
+CashTable = reactive({
+  chase_points_to_cash = function(){
+  chase_pts = input$groceries + 3*input$restaurants + 3*input$flights + 3*input$hotel + input$other
+  
+  
+  x = rep(1:chase_pts)
+  cash_value = numeric(chase_pts)
+  for(i in 1:chase_pts){
+  cash_value[i] = 1.25*x[i]/100
+  }
+  list(chase_y_plot = cash_value)
+}
+
+  amex_points_to_cash = function(){
+  amex_pts = 4*input$groceries + 4*input$restaurants + 3*input$flights + input$hotel + input$other
+  
+  x = rep(1:amex_pts)
+  cash_value2 = numeric(amex_pts)
+  for(i in 1:amex_pts){
+  cash_value2[i] = 1*x[i]/100
+  }
+  list(amex_y_plot = cash_value2)
+}
+
+## chase_cash_value as object from the function 
+temp = chase_points_to_cash()
+chase_value = temp$chase_y_plot 
+
+
+temp2 = amex_points_to_cash()
+amex_value = temp2$amex_y_plot
+
+df1 = data.frame("Chase_Value" = chase_value)
+df2 = data.frame("Amex_Value" = amex_value)
+
+
+isolate({
+  ggplot() + geom_line(data = df1, mapping = aes(x = seq(from = 0, to =length(Chase_Value)-1)
+                                               , y=Chase_Value, color = 'Chase')) + 
+  geom_line(data = df2, mapping = aes(x = seq(from = 0, to=length(Amex_Value)-1),
+                                      y = Amex_Value, color = 'Amex')) +
+  labs(title = "Chase vs Amex Points Cash Value Conditioned on Spend Behavior", color = "Credit Card Company") +
+  xlab("Points") + ylab("Cash Value")
+})
+
+})
+## NEED TO MAKE THE PLOTSSS
+  
+  ## Render data frame in the UI so that I can call it using tags$head #Table. 
+  
+  output$dataTable = renderTable({
+    Table()
+  })
+  
+  output$dataPlot <- renderPlot({
+    CashTable()
+  })
+  
+  
+} 
+
+shinyApp(ui = ui, server = server)
+
+```
+
+
+```{r}
+ggplot() + geom_line(data = df2, mapping = aes(x = seq(from = 0, to =length(Chase_value)-1)
+                                               , y=Chase_value, color = 'Chase')) + 
+  geom_line(data = df2, mapping = aes(x = seq(from = 0, to=length(Amex_Value)-1),
+                                      y = Amex_Value, color = 'Amex')) +
+  labs(title = "Chase vs Amex Points Cash Value Conditioned on Spend Behavior", color = "Credit Card Company") +
+  xlab("Points") + ylab("Cash Value")
+                                              
+```
+
+
+```{r}
   
     output$contents <- renderPrint({
     if (input$update>0) { 
@@ -79,7 +200,5 @@ server <- function(input, output){
   })
   
   }
-shinyApp(ui = ui, server = server)
-
 ```
 
